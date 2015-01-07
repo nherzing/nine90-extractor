@@ -103,11 +103,14 @@
   (flush)
   (let [out-filename (str out-path "/" (FilenameUtils/getBaseName (.getName pdf)) ".edn")]
     (when-not (.exists (File. out-filename))
-      (let [res (read-pdf pdf)]
-        (if (< (count res) 2)
-          (println "WARN: Fewer than 2 records for" (.getName pdf)))
-        (spit out-filename
-              (pr-str res)))))
+      (try
+        (let [res (read-pdf pdf)]
+          (if (< (count res) 2)
+            (println "WARN: Fewer than 2 records for" (.getName pdf)))
+          (spit out-filename
+                (pr-str res)))
+        (catch Exception e
+          (println "ERROR: Failed processing" (.getName pdf) "," (.getMessage e))))))
   (println " DONE"))
 
 (defn -main [path out-path]
