@@ -1,4 +1,5 @@
 (ns tax-extractor.core
+  (:require [clojure.java.shell :refer [sh]])
   (:import [net.sourceforge.tess4j Tesseract]
            [org.ghost4j.document PDFDocument]
            [org.ghost4j.renderer SimpleRenderer]
@@ -51,7 +52,6 @@
   (.parse (NumberFormat/getNumberInstance java.util.Locale/US) s))
 
 (def number-chars "0123456789,.")
-
 (def name-chars "")
 
 (defn parse-comp [comp-str]
@@ -74,6 +74,8 @@
         :reportable-external-comp (parse-comp (doocr (reportable-external-comp y-off)))
         :other-comp (parse-comp (doocr (other-comp y-off)))))))
 
+(defn threshold [filename]
+  (sh "convert" filename "-threshold" "75%" filename))
 
 (defn read-pdf [pdf]
   (let [doc (doto (PDFDocument.)
@@ -85,6 +87,8 @@
         file-two (File. "two.png")]
     (ImageIO/write page-one "png" file-one)
     (ImageIO/write page-two "png" file-two)
+    (threshold "one.png")
+    (threshold "two.png")
     (loop [idx 0
            records []]
       (if-let [record (try
