@@ -66,22 +66,14 @@
         doocr (fn [r] (.doOCR tess file r))
         _ (.setTessVariable tess "tessedit_char_whitelist" name-chars)
         name-and-title (-> y-off name-rect doocr parse-name-and-title)]
-    (.setTessVariable tess "tessedit_char_whitelist" number-chars)
-    (assoc name-and-title
-      :hours (parse-hours (doocr (hours-rect y-off)))
-      :reportable-internal-comp (parse-comp (doocr (reportable-internal-comp y-off)))
-      :reportable-external-comp (parse-comp (doocr (reportable-external-comp y-off)))
-      :other-comp (parse-comp (doocr (other-comp y-off))))))
+    (when-not (empty? (:name name-and-title))
+      (.setTessVariable tess "tessedit_char_whitelist" number-chars)
+      (assoc name-and-title
+        :hours (parse-hours (doocr (hours-rect y-off)))
+        :reportable-internal-comp (parse-comp (doocr (reportable-internal-comp y-off)))
+        :reportable-external-comp (parse-comp (doocr (reportable-external-comp y-off)))
+        :other-comp (parse-comp (doocr (other-comp y-off)))))))
 
-
-
-(defn read-file [fname-one fname-two idx]
-  (let [file-one (File. fname-one)
-        file-two (File. fname-two)]
-    (read-record file-one file-two idx)))
-
-(defn temp-png []
-  (File/createTempFile "cut" "png"))
 
 (defn read-pdf [pdf]
   (let [doc (doto (PDFDocument.)
@@ -95,18 +87,17 @@
     (ImageIO/write page-two "png" file-two)
     (loop [idx 0
            records []]
-      (let [record (try
-                     (read-record file-one file-two idx)
-                     (catch Exception e
-                       (println "Failed to read record" idx "from" (.getName pdf))
-                       (println "Exception:" (.getMessage e))
-                       nil))]
-        (if (empty? (:name record))
-          records
-          (do (print ".")
-              (flush)
-              (recur (inc idx)
-                     (conj records record))))))))
+      (if-let [record (try
+                        (read-record file-one file-two idx)
+                        (catch Exception e
+                          (println "Failed to read record" idx "from" (.getName pdf))
+                          (println "Exception:" (.getMessage e))
+                          nil))]
+        (do (print ".")
+            (flush)
+            (recur (inc idx)
+                   (conj records record)))
+        records))))
 
 (defn process-pdf [pdf out-path]
   (print "Processing" (.getName pdf))
