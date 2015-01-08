@@ -83,12 +83,14 @@
         renderer (doto (SimpleRenderer.)
                    (.setResolution 300))
         [page-one page-two] (.render renderer doc 7 8)
-        file-one (File. "one.png")
-        file-two (File. "two.png")]
+        filename-one (str (java.util.UUID/randomUUID) ".png")
+        filename-two (str (java.util.UUID/randomUUID) ".png")
+        file-one (File. filename-one)
+        file-two (File. filename-two)]
     (ImageIO/write page-one "png" file-one)
     (ImageIO/write page-two "png" file-two)
-    (threshold "one.png")
-    (threshold "two.png")
+    (threshold filename-one)
+    (threshold filename-two)
     (loop [idx 0
            records []]
       (if-let [record (try
@@ -101,7 +103,10 @@
             (flush)
             (recur (inc idx)
                    (conj records record)))
-        records))))
+        (do
+          (.delete file-one)
+          (.delete file-two)
+          records)))))
 
 (defn process-pdf [pdf out-path]
   (print "Processing" (.getName pdf))
