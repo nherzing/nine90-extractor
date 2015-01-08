@@ -69,7 +69,6 @@
     (when-not (empty? (:name name-and-title))
       (.setTessVariable tess "tessedit_char_whitelist" number-chars)
       (assoc name-and-title
-        :hours (parse-hours (doocr (hours-rect y-off)))
         :reportable-internal-comp (parse-comp (doocr (reportable-internal-comp y-off)))
         :reportable-external-comp (parse-comp (doocr (reportable-external-comp y-off)))
         :other-comp (parse-comp (doocr (other-comp y-off)))))))
@@ -123,10 +122,13 @@
           (println "ERROR: Failed processing" (.getName pdf) "," (.getMessage e))))))
   (println " DONE"))
 
+(defn pdf? [file]
+  (.endsWith (.getName file) ".pdf"))
+
 (defn -main [path out-path]
   (.setTessVariable (Tesseract/getInstance) "debug_file" "/dev/null")
   (let [f (File. path)]
     (if (.isDirectory f)
-      (doseq [pdf (.listFiles f)]
+      (doseq [pdf (filter pdf? (.listFiles f))]
         (process-pdf pdf out-path))
       (process-pdf f out-path))))
