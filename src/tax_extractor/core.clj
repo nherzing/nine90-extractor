@@ -76,36 +76,48 @@
 (defn threshold [filename]
   (sh "convert" filename "-threshold" "75%" filename))
 
+(defn efiled-990? [page-one]
+  (let [name-rect (Rectangle. 115 30 75 40)
+        tess (Tesseract/getInstance)]
+    (.setTessVariable tess "tessedit_char_whitelist" number-chars)
+    (= (clojure.string/trim (.doOCR tess page-one name-rect)) "990")))
+
 (defn read-pdf [pdf]
   (let [doc (doto (PDFDocument.)
-              (.load pdf))
-        renderer (doto (SimpleRenderer.)
-                   (.setResolution 300))
-        [page-one page-two] (.render renderer doc 7 8)
-        filename-one (str (java.util.UUID/randomUUID) ".png")
-        filename-two (str (java.util.UUID/randomUUID) ".png")
-        file-one (File. filename-one)
-        file-two (File. filename-two)]
-    (ImageIO/write page-one "png" file-one)
-    (ImageIO/write page-two "png" file-two)
-    (threshold filename-one)
-    (threshold filename-two)
-    (loop [idx 0
-           records []]
-      (if-let [record (try
-                        (read-record file-one file-two idx)
-                        (catch Exception e
-                          (println "Failed to read record" idx "from" (.getName pdf))
-                          (println "Exception:" (.getMessage e))
-                          nil))]
-        (do (print ".")
-            (flush)
-            (recur (inc idx)
-                   (conj records record)))
-        (do
-          (.delete file-one)
-          (.delete file-two)
-          records)))))
+              (.load pdf))]
+    (when (> (.getPageCount doc) 8)
+      (let [renderer (doto (SimpleRenderer.)
+                       (.setResolution 300))
+            [page-one page-two] (.render renderer doc 7 8)
+            filename-one (str (java.util.UUID/randomUUID) ".png")
+            filename-two (str (java.util.UUID/randomUUID) ".png")
+            file-one (File. filename-one)
+            file-two (File. filename-two)]
+        (ImageIO/write page-one "png" file-one)
+        (threshold filename-one)
+        (if (efiled-990? file-one)
+          (do
+            (ImageIO/write page-two "png" file-two)
+            (threshold filename-two)
+            (loop [idx 0
+                   records []]
+              (if-let [record (try
+                                (read-record file-one file-two idx)
+                                (catch Exception e
+                                  (println "Failed to read record" idx "from" (.getName pdf))
+                                  (println "Exception:" (.getMessage e))
+                                  nil))]
+                (do (print ".")
+                    (flush)
+                    (recur (inc idx)
+                           (conj records record)))
+                (do
+                  (.delete file-one)
+                  (.delete file-two)
+                  records))))
+          (do
+            (.delete file-one)
+            nil))))))
 
 (defn process-pdf [pdf out-path]
   (print "Processing" (.getName pdf))
@@ -113,13 +125,15 @@
   (let [out-filename (str out-path "/" (FilenameUtils/getBaseName (.getName pdf)) ".edn")]
     (when-not (.exists (File. out-filename))
       (try
-        (let [res (read-pdf pdf)]
-          (if (< (count res) 2)
-            (println "WARN: Fewer than 2 records for" (.getName pdf)))
-          (spit out-filename
-                (pr-str res)))
+        (if-let [res (read-pdf pdf)]
+          (do
+            (if (< (count res) 2)
+              (print " WARN: Fewer than 2 records"))
+            (spit out-filename
+                  (pr-str res)))
+          (print " SKIP: Not efiled 990"))
         (catch Exception e
-          (println "ERROR: Failed processing" (.getName pdf) "," (.getMessage e))))))
+          (println "ERROR: Failed processing," (.getMessage e))))))
   (println " DONE"))
 
 (defn pdf? [file]
