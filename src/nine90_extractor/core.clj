@@ -53,7 +53,7 @@
   (Rectangle. 2200 y-off 300 row-height))
 
 (defn parse-name-and-title [name-str]
-  (when-let [[_ _ name title] (re-matches #"\W*(\(\d+\))?\W*(.*)\W*(.*)\W*" name-str)]
+  (when-let [[_ _ name title] (re-matches #"\s*(\(\d+\))?s*(.*)s*(.*)s*" name-str)]
     {:name name :title title}))
 
 (defn parse-hours [hours-str]
@@ -100,7 +100,7 @@
         tess (Tesseract/getInstance)
         form-id (clojure.string/trim (.doOCR tess page-one name-rect))]
     (.setTessVariable tess "tessedit_char_whitelist" (str number-chars " ()"))
-    (last (re-find #"990\W*\((201\d)\)" form-id))))
+    (last (re-find #"990\s*\((201\d)\)" form-id))))
 
 (defn read-pdf [pdf]
   (let [ein (last (re-find #"([\d-]+)_.*\.pdf" (.getName pdf)))
