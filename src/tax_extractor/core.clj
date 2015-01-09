@@ -96,20 +96,22 @@
     file))
 
 (defn efiled-990? [page-one]
-  (let [name-rect (Rectangle. 115 30 75 40)
-        tess (Tesseract/getInstance)]
-    (.setTessVariable tess "tessedit_char_whitelist" number-chars)
-    (= (clojure.string/trim (.doOCR tess page-one name-rect)) "990")))
+  (let [name-rect (Rectangle. 115 30 220 40)
+        tess (Tesseract/getInstance)
+        form-id (clojure.string/trim (.doOCR tess page-one name-rect))]
+    (.setTessVariable tess "tessedit_char_whitelist" (str number-chars " ()"))
+    (last (re-find #"990\W*\((201\d)\)" form-id))))
 
 (defn read-pdf [pdf]
-  (let [doc (doto (PDFDocument.)
+  (let [ein (last (re-find #"([\d-]+)_.*\.pdf" (.getName pdf)))
+        doc (doto (PDFDocument.)
               (.load pdf))]
     (when (> (.getPageCount doc) 8)
       (let [renderer (doto (SimpleRenderer.)
                        (.setResolution 300))
             [page-one page-two] (.render renderer doc 7 8)]
         (with-image [file-one (save-image page-one)]
-          (when (efiled-990? file-one)
+          (when-let [year-filed (efiled-990? file-one)]
             (with-image [file-two (save-image page-two)]
               (loop [idx 0
                      records []]
@@ -123,7 +125,9 @@
                       (flush)
                       (recur (inc idx)
                              (conj records record)))
-                  records)))))))))
+                  {:year year-filed
+                   :ein ein
+                   :employees records})))))))))
 
 (defn process-pdf [pdf out-path]
   (print "Processing" (.getName pdf))
@@ -133,7 +137,7 @@
       (try
         (if-let [res (read-pdf pdf)]
           (do
-            (if (< (count res) 2)
+            (if (< (count (:employees res)) 2)
               (print " WARN: Fewer than 2 records"))
             (spit out-filename
                   (pr-str res)))
