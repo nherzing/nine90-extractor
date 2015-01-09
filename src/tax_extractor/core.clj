@@ -9,6 +9,19 @@
            [java.io File PrintStream OutputStreamWriter FileOutputStream BufferedWriter]
            [org.apache.commons.io FilenameUtils]))
 
+(defmacro with-image
+  "Same as with-open except it deletes the file"
+  [bindings & body]
+  (cond
+    (= (count bindings) 0) `(do ~@body)
+    (symbol? (bindings 0)) `(let ~(subvec bindings 0 2)
+                              (try
+                                (with-image ~(subvec bindings 2) ~@body)
+                                (finally
+                                  (. ~(bindings 0) delete))))
+    :else (throw (IllegalArgumentException.
+                   "with-image only allows Symbols in bindings"))))
+
 (def row-height 112)
 (def page-two-row-height 116)
 (def padding 3)
@@ -73,8 +86,14 @@
         :reportable-external-comp (parse-comp (doocr (reportable-external-comp y-off)))
         :other-comp (parse-comp (doocr (other-comp y-off)))))))
 
-(defn threshold [filename]
-  (sh "convert" filename "-threshold" "75%" filename))
+(defn threshold [file]
+  (sh "convert" (.getName file) "-threshold" "75%" (.getName file)))
+
+(defn save-image [image]
+  (let [file (File. (str (java.util.UUID/randomUUID) ".png"))]
+    (ImageIO/write image "png" file)
+    (threshold file)
+    file))
 
 (defn efiled-990? [page-one]
   (let [name-rect (Rectangle. 115 30 75 40)
@@ -88,36 +107,23 @@
     (when (> (.getPageCount doc) 8)
       (let [renderer (doto (SimpleRenderer.)
                        (.setResolution 300))
-            [page-one page-two] (.render renderer doc 7 8)
-            filename-one (str (java.util.UUID/randomUUID) ".png")
-            filename-two (str (java.util.UUID/randomUUID) ".png")
-            file-one (File. filename-one)
-            file-two (File. filename-two)]
-        (ImageIO/write page-one "png" file-one)
-        (threshold filename-one)
-        (if (efiled-990? file-one)
-          (do
-            (ImageIO/write page-two "png" file-two)
-            (threshold filename-two)
-            (loop [idx 0
-                   records []]
-              (if-let [record (try
-                                (read-record file-one file-two idx)
-                                (catch Exception e
-                                  (println "Failed to read record" idx "from" (.getName pdf))
-                                  (println "Exception:" (.getMessage e))
-                                  nil))]
-                (do (print ".")
-                    (flush)
-                    (recur (inc idx)
-                           (conj records record)))
-                (do
-                  (.delete file-one)
-                  (.delete file-two)
-                  records))))
-          (do
-            (.delete file-one)
-            nil))))))
+            [page-one page-two] (.render renderer doc 7 8)]
+        (with-image [file-one (save-image page-one)]
+          (when (efiled-990? file-one)
+            (with-image [file-two (save-image page-two)]
+              (loop [idx 0
+                     records []]
+                (if-let [record (try
+                                  (read-record file-one file-two idx)
+                                  (catch Exception e
+                                    (println "Failed to read record" idx)
+                                    (println "Exception:" (.getMessage e))
+                                    nil))]
+                  (do (print ".")
+                      (flush)
+                      (recur (inc idx)
+                             (conj records record)))
+                  records)))))))))
 
 (defn process-pdf [pdf out-path]
   (print "Processing" (.getName pdf))
