@@ -1,4 +1,4 @@
-(ns tax-extractor.core
+(ns nine90-extractor.core
   (:require [clojure.java.shell :refer [sh]])
   (:import [net.sourceforge.tess4j Tesseract]
            [org.ghost4j.document PDFDocument]
