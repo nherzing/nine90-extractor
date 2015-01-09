@@ -53,7 +53,7 @@
   (Rectangle. 2200 y-off 300 row-height))
 
 (defn parse-name-and-title [name-str]
-  (when-let [[_ _ name title] (re-matches #"\s*(\(\d+\))?s*(.*)s*(.*)s*" name-str)]
+  (when-let [[_ _ name title] (re-matches #"\s*(\(\d+\))?\s*(.*)\s*(.*)\s*" name-str)]
     {:name name :title title}))
 
 (defn parse-hours [hours-str]
