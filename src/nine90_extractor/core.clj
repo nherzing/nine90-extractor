@@ -115,19 +115,20 @@
             (with-image [file-two (save-image page-two)]
               (loop [idx 0
                      records []]
-                (if-let [record (try
-                                  (read-record file-one file-two idx)
-                                  (catch Exception e
-                                    (println "Failed to read record" idx)
-                                    (println "Exception:" (.getMessage e))
-                                    nil))]
-                  (do (print ".")
-                      (flush)
-                      (recur (inc idx)
-                             (conj records record)))
-                  {:year year-filed
-                   :ein ein
-                   :employees records})))))))))
+                (when (< idx 30)
+                  (if-let [record (try
+                                    (read-record file-one file-two idx)
+                                    (catch Exception e
+                                      (println "Failed to read record" idx)
+                                      (println "Exception:" (.getMessage e))
+                                      nil))]
+                    (do (print ".")
+                        (flush)
+                        (recur (inc idx)
+                               (conj records record)))
+                    {:year year-filed
+                     :ein ein
+                     :employees records}))))))))))
 
 (defn process-pdf [pdf out-path]
   (print "Processing" (.getName pdf))
